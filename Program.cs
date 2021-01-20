@@ -1,4 +1,5 @@
-﻿using OutlookReminderTopMost.Properties;
+﻿using IWshRuntimeLibrary;
+using OutlookReminderTopMost.Properties;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -71,27 +72,26 @@ namespace OutlookReminderTopMost
         {
             try
             {
-                string autostart = Path.GetFullPath(Environment.GetFolderPath(Environment.SpecialFolder.Startup));
-                string sourceBinary = Process.GetCurrentProcess().MainModule.FileName;
+                string binary = Process.GetCurrentProcess().MainModule.FileName;
                 s_searchedTitles = Settings.Default.NamesOfSearchedHeaders?.Split(';').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
                 if (s_searchedTitles == null || s_searchedTitles.Length == 0)
                 {
-                    throw new Exception(string.Format("Missing '{0}' in configuration file '{1}'", nameof(Settings.Default.NamesOfSearchedHeaders), sourceBinary + ".config"));
+                    throw new Exception(string.Format("Missing '{0}' in configuration file '{1}'", nameof(Settings.Default.NamesOfSearchedHeaders), binary + ".config"));
                 }
 
+                string autostartDir = Path.GetFullPath(Environment.GetFolderPath(Environment.SpecialFolder.Startup));
+                string lnk = Path.Combine(autostartDir, Path.GetFileNameWithoutExtension(binary) + ".lnk");
 
-                string binaryDir = Path.GetFullPath(Path.GetDirectoryName(sourceBinary));
-                if (!string.Equals(autostart, binaryDir, StringComparison.OrdinalIgnoreCase))
+
+                if (!System.IO.File.Exists(lnk))
                 {
-                    string targetBinary = Path.Combine(autostart, Path.GetFileName(sourceBinary));
-                    File.Copy(sourceBinary, targetBinary, true);
-                    string sourceConfig = sourceBinary + ".config";
-                    if (File.Exists(sourceConfig))
-                    {
-                        File.Copy(sourceConfig, targetBinary + ".config");
-                    }
-                    Process.Start(targetBinary);
-                    return;
+                    // Create shortcut
+                    WshShell shell = new WshShell();
+                    IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(lnk);
+
+                    shortcut.Description = "Outlook Reminder Top Most";   // The description of the shortcut
+                    shortcut.TargetPath = binary;                 // The path of the file that will launch when the shortcut is run
+                    shortcut.Save();
                 }
 
                 Stopwatch lastStartTry = null;
